@@ -1,0 +1,67 @@
+---
+title: "Karabiner on macOS"
+---
+
+Karabiner-Elements is a powerful, low-level keyboard customizer for macOS. It enables global remapping, complex multi-key rules, and per-application profiles — useful for developers, power users, and anyone who wants to tailor keyboard behavior beyond System Preferences.
+
+## Why use Karabiner?
+
+- **System-wide remapping** - Remap keys globally (e.g., swap Caps Lock and Control)
+- **Context-aware rules** - Create rules for specific apps
+- **Complex modifications** - Combine simple modifications with tap vs hold behavior
+- **Low-level stability** - Works everywhere: login screen, terminal, all apps
+
+## Quick Setup
+
+1. Download and install [Karabiner-Elements](https://karabiner-elements.pqrs.org/)
+2. Open Karabiner Preferences and enable the app
+3. Add rules via the "Complex Modifications" tab or edit `~/.config/karabiner/karabiner.json` directly
+
+## Common Use Cases
+
+### Example 1: Windows Keyboard Profile
+
+Create a separate profile for a Windows keyboard on macOS to maintain familiar key layouts.
+
+### Example 2: Swap Command and Control
+
+Switch `left_command` and `left_control` keys on the Windows keyboard. By default, the Windows key maps to Command. If you're used to `Cmd + C` for copying, this switch makes the Ctrl key on your Windows keyboard act like the Command key.
+![Karabiner Settings](/images/macos/karabiner/karabiner-simple-mod.png)
+
+
+### Example 3: Caps Lock as Alfred Trigger
+
+Map Caps Lock to `Cmd + Ctrl + Opt + Shift + Space` to launch Alfred instantly.
+
+Instead of pressing the full `Cmd + Ctrl + Opt + Shift + Space` combination, just hit Caps Lock and Alfred appears!
+
+**Configuration:**
+
+Add this rule under the "rules" array in your `karabiner.json`:
+
+```json
+{
+  "manipulators": [
+    {
+      "description": "Change caps_lock to command+control+option+shift+spacebar.",
+      "from": {
+        "key_code": "caps_lock",
+        "modifiers": { "optional": ["any"] }
+      },
+      "to": [
+        {
+          "key_code": "spacebar",
+          "modifiers": ["left_command", "left_control", "left_option"]
+        }
+      ],
+      "type": "basic"
+    }
+  ]
+}
+```
+
+## Resources
+
+- [Official Documentation](https://karabiner-elements.pqrs.org/docs/)
+- [Complex Modifications Gallery](https://ke-complex-modifications.pqrs.org/)
+- Config location: `~/.config/karabiner/karabiner.json`

@@ -1,10 +1,10 @@
 {
-  "name": "example-next-mdx",
+  "name": "phph-wiki",
   "version": "0.0.0",
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev --port 3003",
     "start": "next start",
     "postinstall": "fumadocs-mdx"
   },
@@ -26,5 +26,8 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.15",
     "typescript": "^5.9.3"
+  },
+  "prettier": {
+    "semi": false
   }
 }
