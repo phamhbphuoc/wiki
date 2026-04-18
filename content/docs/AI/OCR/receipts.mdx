@@ -2,9 +2,7 @@
 title: ReceiptVision Local
 ---
 
-# Reading Japanese Grocery Receipts with a Local Vision LLM
-
-*A zero-API-cost pipeline that turns a receipt photo into a SQLite database — entirely on your MacBook.*
+*A zero-API-cost pipeline that turns a receipt photo into a SQLite database*
 
 ## The Idea
 
@@ -16,7 +14,7 @@ The goal: **photo in, database row out, zero cloud**.
 
 ---
 
-## What We Built
+## Architecture
 
 A Python pipeline with three stages:
 
@@ -83,8 +81,6 @@ This is the version that actually works.
 ---
 
 ## The Non-Obvious Gotchas
-
-If you're integrating mlx-vlm yourself, save yourself an afternoon:
 
 **1. You must call `apply_chat_template`.**
 Passing a raw text prompt to `generate()` silently ignores the image. The model needs an
@@ -155,12 +151,7 @@ consistently, what you're running low on, and how your shopping patterns change 
 
 ---
 
-## What's Next
-
-- A simple query CLI (`what did I buy most this month?`)
-- Price trend tracking per item
-- Weekly summary report
-
+## Wrap-up
 The whole thing is ~250 lines of Python, runs offline, and costs nothing per query. The model
 is genuinely good at dense Japanese text — it read a 44-item, ¥9,695 receipt correctly on the
 first real test.
