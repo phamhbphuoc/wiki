@@ -1,0 +1,166 @@
+# Reading Japanese Grocery Receipts with a Local Vision LLM
+
+*A zero-API-cost pipeline that turns a receipt photo into a SQLite database — entirely on your MacBook.*
+
+## The Idea
+
+A Japanese grocery receipt is dense: 20–40 line items, item codes, quantities, unit prices, a
+running total, tax breakdowns. Parsing that manually is tedious. Parsing it with a cloud vision
+API is easy but costs money and sends your grocery data to someone else's server.
+
+The goal: **photo in, database row out, zero cloud**.
+
+---
+
+## What We Built
+
+A Python pipeline with three stages:
+
+```
+receipt photo (JPEG)
+      │
+      ▼
+  mlx-vlm (Qwen2.5-VL-7B, 4-bit, on-device)
+      │  extracts items, quantities, prices, total
+      ▼
+  SQLite  (receipts + items + inventory tables)
+```
+
+One command does everything:
+
+```bash
+python -m src.cli --image receipts/my_receipt.jpg
+```
+
+Output:
+
+```json
+{
+  "receipt_id": 7,
+  "item_count": 20,
+  "total": 9695.0,
+  "items": [
+    { "name": "バナナカステラ", "qty": 2.0, "cost_per_unit": 344.0 },
+    { "name": "果汁グミぶどう", "qty": 1.0, "cost_per_unit": 149.0 },
+    { "name": "りんご",         "qty": 3.0, "cost_per_unit": 214.0 }
+  ]
+}
+```
+
+---
+
+## The Journey (What Broke)
+
+### Attempt 1: macOS Vision OCR → text LLM
+
+The original design used Apple's Vision Framework for OCR, then sent the raw text to a local
+Ollama instance (qwen2.5) for parsing. This worked but had a weak point: Vision OCR is fragile
+on skewed or rotated receipts, and the two-step pipeline means OCR errors compound into parsing
+errors.
+
+### Attempt 2: Ollama multimodal (qwen3.5)
+
+The obvious fix was to skip OCR entirely and send the image directly to a multimodal LLM via
+Ollama. One call, image in, JSON out. Cleaner pipeline, more robust to tilted photos.
+
+Problem: Qwen3.5's extended thinking mode timed out at 120 seconds every time.
+
+### Attempt 3: mlx-vlm on Apple Silicon
+
+[mlx-vlm](https://github.com/Blaizzy/mlx-vlm) runs vision models natively on Apple Silicon
+using MLX — no Ollama, no HTTP, no timeout. The model runs in-process, weights loaded directly
+into unified memory.
+
+Model: `mlx-community/Qwen2.5-VL-7B-Instruct-4bit` — 4-bit quantized, ~4 GB, strong Japanese
+and vision capabilities.
+
+This is the version that actually works.
+
+---
+
+## The Non-Obvious Gotchas
+
+If you're integrating mlx-vlm yourself, save yourself an afternoon:
+
+**1. You must call `apply_chat_template`.**
+Passing a raw text prompt to `generate()` silently ignores the image. The model needs an
+`<|image_pad|>` token embedded in the prompt to know where to attend. Without it, it just
+hallucinates a generic receipt.
+
+```python
+from mlx_vlm.prompt_utils import apply_chat_template
+formatted = apply_chat_template(processor, config, your_prompt, num_images=1)
+```
+
+**2. In mlx-vlm 0.4.x, `prompt` is the 3rd arg, `image` is the 4th.**
+Use keyword arguments — the order has changed across versions and positional args will swap
+silently.
+
+```python
+result = generate(model, processor, prompt=formatted, image="receipt.jpg", ...)
+```
+
+**3. `generate()` returns a `GenerationResult`, not a string.**
+Access `.text` to get the string.
+
+**4. The model repeats past the stop token.**
+Split on `<|endoftext|>` before trying to parse JSON.
+
+**5. Store category codes are printed on Japanese receipts.**
+`514_バナナカステラ` is how the item appears on the paper. Instruct the model to strip the
+prefix in your prompt, or post-process with a regex.
+
+---
+
+## Steps to Reproduce
+
+**Requirements:** Mac with Apple Silicon (M1 or later), Python 3.10+, ~6 GB free RAM.
+
+```bash
+# 1. Clone and set up
+git clone <repo>
+cd groceryIntelligence
+python -m venv .venv && source .venv/bin/activate
+pip install mlx-vlm
+
+# 2. Take a photo of a receipt and drop it in receipts/
+# The model downloads automatically on first run (~4 GB from Hugging Face)
+
+# 3. Run
+python -m src.cli --image receipts/my_receipt.jpg
+```
+
+The first run takes a minute to download and load the model. Subsequent runs load from cache
+and typically complete in 15–30 seconds depending on receipt density.
+
+---
+
+## Database Schema
+
+Four tables in `data/grocery.db`:
+
+| Table | What it stores |
+|---|---|
+| `receipts` | One row per receipt — date, total, raw parsed JSON |
+| `items` | Deduplicated item name registry |
+| `receipt_items` | Line items: which item, which receipt, qty, unit price |
+| `inventory` | Running cumulative quantity per item across all receipts |
+
+The `inventory` table is what makes this interesting over time — you can see what you buy
+consistently, what you're running low on, and how your shopping patterns change by season.
+
+---
+
+## What's Next
+
+- A simple query CLI (`what did I buy most this month?`)
+- Price trend tracking per item
+- Weekly summary report
+
+The whole thing is ~250 lines of Python, runs offline, and costs nothing per query. The model
+is genuinely good at dense Japanese text — it read a 44-item, ¥9,695 receipt correctly on the
+first real test.
+
+---
+
+*Stack: Python, mlx-vlm, Qwen2.5-VL-7B-Instruct-4bit, SQLite. Runs on macOS with Apple Silicon.*
